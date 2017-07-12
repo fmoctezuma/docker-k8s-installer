@@ -3,7 +3,8 @@ MAINTAINER "Francisco Moctezuma <yazpik@gmail.com>"
 
 ENV TERRAFORM_VERSION=0.10.0-beta1
 
-RUN apk add --update git bash openssh
+RUN apk add --update git bash openssh openssl && \
+    rm -rf /var/cache/apk/*
 
 ENV TF_DEV=true
 
@@ -11,6 +12,10 @@ WORKDIR $GOPATH/src/github.com/hashicorp/terraform
 RUN git clone https://github.com/hashicorp/terraform.git ./ && \
     git checkout v${TERRAFORM_VERSION} && \
     /bin/bash scripts/build.sh
+
+WORKDIR $GOPATH/src/github.com/terraform-providers
+RUN git clone git@github.com:terraform-providers/terraform-provider-openstack ./ && \
+    make build
 
 WORKDIR $GOPATH
 ENTRYPOINT ["terraform"]
