@@ -3,11 +3,26 @@ MAINTAINER "Francisco Moctezuma <yazpik@gmail.com>"
 
 ENV TERRAFORM_VERSION=0.10.0-beta1
 ENV TERRAFORM_SHA256SUM=9e14c850054faaaa3f40a1c28d8991fc4a42f0dc2d53564d8f60b12243c7ae5d
-RUN apk add --update git curl openssh && \
+ENV SIGIL_VERSION=0.4.0
+RUN apk add --update curl docker git jq make openssh openssl   && \
     curl https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
     echo "${TERRAFORM_SHA256SUM}  terraform_${TERRAFORM_VERSION}_linux_amd64.zip" > terraform_${TERRAFORM_VERSION}_SHA256SUMS && \
     sha256sum -cs terraform_${TERRAFORM_VERSION}_SHA256SUMS && \
     unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /bin && \
     rm -f terraform_${TERRAFORM_VERSION}_linux_amd64.zip 
 
-ENTRYPOINT ["/bin/terraform"]
+
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
+	&& chmod +x ./kubectl \
+	&& mv ./kubectl /usr/local/bin/kubectl
+
+RUN curl -LO https://github.com/gliderlabs/sigil/releases/download/v0.4.0/sigil_${SIGIL_VERSION}_Linux_x86_64.tgz \
+	&& tar -zxf sigil_${SIGIL_VERSION}_Linux_x86_64.tgz \
+	&& mv ./sigil /usr/local/bin/sigil
+
+
+WORKDIR /k8s-installer
+#ENTRYPOINT ["/bin/terraform"]
+ADD . .
+
+ENTRYPOINT ["/bin/sh"]
