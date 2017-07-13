@@ -2,7 +2,7 @@
 FROM golang:alpine AS build-tf-os-provider
 MAINTAINER "Francisco Moctezuma <yazpik@gmail.com>"
 
-RUN apk add --update git openssh openssl make bash && \
+RUN apk add --update git make bash && \
     rm -rf /var/cache/apk/*
 
 WORKDIR $GOPATH/src/github.com/terraform-providers
@@ -18,7 +18,7 @@ ENV TERRAFORM_VERSION=0.10.0-beta1
 ENV TERRAFORM_SHA256SUM=9e14c850054faaaa3f40a1c28d8991fc4a42f0dc2d53564d8f60b12243c7ae5d
 ENV SIGIL_VERSION=0.4.0
 ENV KUBECTL_VERSION=stable
-RUN apk add --update curl docker git make && \
+RUN apk add --update curl make && \
     curl https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
     echo "${TERRAFORM_SHA256SUM}  terraform_${TERRAFORM_VERSION}_linux_amd64.zip" > terraform_${TERRAFORM_VERSION}_SHA256SUMS && \
     sha256sum -cs terraform_${TERRAFORM_VERSION}_SHA256SUMS && \
@@ -37,12 +37,14 @@ RUN curl -LO https://github.com/gliderlabs/sigil/releases/download/v0.4.0/sigil_
 
 # Final stage and install pre-reqs
 FROM alpine:latest
-RUN apk add --update jq make openssh openssl && \
+RUN apk add --update bash jq git docker make openrc openssh openssl && \
 	rm -rf /var/cache/apk/*
-
+CMD rc-service docker start
 WORKDIR /k8s-installer
+
+# Moving Binaries generated on early stages
 COPY --from=build-tf-os-provider /go/bin/terraform-provider-openstack /k8s-installer
 COPY --from=download-prebuilds /bin/terraform /usr/local/bin/
 COPY --from=download-prebuilds /usr/local/bin/sigil /usr/local/bin/
 COPY --from=download-prebuilds /usr/local/bin/kubectl /usr/local/bin/
-ADD . .
+
