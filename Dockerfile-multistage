@@ -1,4 +1,4 @@
-# Building terraform provider
+# Building terraform and terraform openstack provider
 FROM golang:alpine AS build-tf-os-provider
 MAINTAINER "Francisco Moctezuma <yazpik@gmail.com>"
 
@@ -10,41 +10,48 @@ RUN git clone https://github.com/terraform-providers/terraform-provider-openstac
 	cd terraform-provider-openstack && \
 	make build
 
-# Downloading prebuilds
+ENV TERRAFORM_VERSION=0.10.0-beta1
+WORKDIR $GOPATH/src/github.com/hashicorp/terraform
+RUN git clone https://github.com/hashicorp/terraform.git ./ && \
+        git checkout v${TERRAFORM_VERSION} && \
+        make dev
+
+## SECOND STAGE - Downloading prebuilds
+
 FROM alpine:latest AS download-prebuilds
+RUN apk add --update curl && \
+       rm -rf /var/cache/apk/*
 
 # Terraform binary
-ENV TERRAFORM_VERSION=0.10.0-beta1
-ENV TERRAFORM_SHA256SUM=9e14c850054faaaa3f40a1c28d8991fc4a42f0dc2d53564d8f60b12243c7ae5d
 ENV SIGIL_VERSION=0.4.0
 ENV KUBECTL_VERSION=stable
-RUN apk add --update curl make && \
-    curl https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip > terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
-    echo "${TERRAFORM_SHA256SUM}  terraform_${TERRAFORM_VERSION}_linux_amd64.zip" > terraform_${TERRAFORM_VERSION}_SHA256SUMS && \
-    sha256sum -cs terraform_${TERRAFORM_VERSION}_SHA256SUMS && \
-    unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /bin && \
-    rm -f terraform_${TERRAFORM_VERSION}_linux_amd64.zip
 
 # Kubectl binary
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
-    && chmod +x ./kubectl \
-    && mv ./kubectl /usr/local/bin/kubectl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && \
+    chmod +x ./kubectl 
 
 # Sigil Binary
-RUN curl -LO https://github.com/gliderlabs/sigil/releases/download/v0.4.0/sigil_${SIGIL_VERSION}_Linux_x86_64.tgz \
-    && tar -zxf sigil_${SIGIL_VERSION}_Linux_x86_64.tgz \
-    && mv ./sigil /usr/local/bin/sigil
+RUN curl -LO https://github.com/gliderlabs/sigil/releases/download/v0.4.0/sigil_${SIGIL_VERSION}_Linux_x86_64.tgz && \
+    tar -zxf sigil_${SIGIL_VERSION}_Linux_x86_64.tgz 
 
-# Final stage and install pre-reqs
+# FINAL STAGE
 FROM alpine:latest
-RUN apk add --update bash jq git docker make openrc openssh openssl && \
+
+ENV DOCKER_VERSION=17.03.1
+
+RUN apk add --update --no-cache bash curl docker git jq make openrc openssh openssl && \
 	rm -rf /var/cache/apk/*
-CMD rc-service docker start
+
+RUN curl -Lo /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}-ce.tgz && \
+    tar --extract --file /tmp/docker.tgz --strip-components 1 --directory /usr/local/bin/ && \
+    curl -sL https://github.com/docker/docker/raw/master/hack/dind > /usr/local/bin/dind && \
+    chmod +x /usr/local/bin/dind 
+
+
 WORKDIR /k8s-installer
 
 # Moving Binaries generated on early stages
 COPY --from=build-tf-os-provider /go/bin/terraform-provider-openstack /k8s-installer
-COPY --from=download-prebuilds /bin/terraform /usr/local/bin/
-COPY --from=download-prebuilds /usr/local/bin/sigil /usr/local/bin/
-COPY --from=download-prebuilds /usr/local/bin/kubectl /usr/local/bin/
-
+COPY --from=build-tf-os-provider /go/bin/terraform /usr/local/bin/
+COPY --from=download-prebuilds ./sigil /usr/local/bin/
+COPY --from=download-prebuilds ./kubectl /usr/local/bin/
