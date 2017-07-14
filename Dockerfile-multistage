@@ -43,10 +43,7 @@ RUN apk add --update --no-cache bash curl docker git jq make openrc openssh open
 	rm -rf /var/cache/apk/*
 
 RUN curl -Lo /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}-ce.tgz && \
-    tar --extract --file /tmp/docker.tgz --strip-components 1 --directory /usr/local/bin/ && \
-    curl -sL https://github.com/docker/docker/raw/master/hack/dind > /usr/local/bin/dind && \
-    chmod +x /usr/local/bin/dind 
-
+    tar --extract --file /tmp/docker.tgz --strip-components 1 --directory /usr/local/bin/ # && \
 
 WORKDIR /k8s-installer
 
